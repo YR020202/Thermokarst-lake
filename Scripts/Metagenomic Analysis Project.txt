@@ -26,7 +26,7 @@ CompareM (https://github.com/donovan-h-parks/CompareM)
 
 
 ### Usage
-# After installing the required packages, you can run the metagenomic analysis code as described in the instructions. For detailed guidance, refer to the file named Metagenomic Analysis.txt.
+# After installing the required packages, you can run the metagenomic analysis code as described in the instructions. For detailed guidance, refer to the file named Metagenomic Analysis Project.txt.
 ### Example Commands
 # Quality control
 conda activate fastp
