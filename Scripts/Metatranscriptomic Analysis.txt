@@ -1,0 +1,41 @@
+#### Metatranscriptomic Analysis Project
+### Required Packages
+fasp (https://github.com/OpenGene/fastp)
+fastqc (https://github.com/s-andrews/FastQC)
+SortMeRNA (https://github.com/sortmerna/sortmerna)
+Bowtie2 (https://github.com/BenLangmead/bowtie2)
+bbmap (https://github.com/BioInfoTools/BBMap)
+
+
+#fastp
+fastp -i path/to/Raw-Reads_1.fq.gz -I path/to/Raw-Rreads_2.fq.gz \
+-o path/to/Clean-Reads_1.fq -O path/to/Clean-Reads_2.fq -q 20 -l 50
+
+#fastqc
+fastqc -q -t 4 -o path/to/fastqc-result/ path/to/ *.fq
+
+#SortMeRNA
+#Remove rRNA
+sortmerna --index 0 --threads 48 \
+--ref path/to/rRNA_databases/silva-bac-16s-id90.fasta \
+--ref path/to/rRNA_databases/silva-bac-23s-id98.fasta \
+--ref path/to/rRNA_databases/silva-arc-16s-id95.fasta \
+--ref path/to/rRNA_databases/silva-arc-23s-id98.fasta \
+--ref path/to/rRNA_databases/silva-euk-18s-id95.fasta \
+--ref path/to/rRNA_databases/silva-euk-28s-id98.fasta \
+--ref path/to/rRNA_databases/rfam-5s-database-id98.fasta \
+--ref path/to/rRNA_databases/rfam-5.8s-database-id98.fasta \
+--workdir ./ \
+--reads Clean-Reads_1.fq\
+--reads Clean-Reads_2.fq \
+--aligned "Result/rRNA" --other "Reslut/mRNA" --paired_in --fastx --out2
+
+#Bowite2
+cd path/to/Reassemble_bins
+cat *.fa > ALL-MAGs.fa
+bowtie2-build ALL-MAGs.fa genome
+bowtie2 -x genome -1 path/to/mRNA-Reads_1.fq -2 path/to/mRNA-Reads_2.fq \ 
+-S path/to/Sample.sam -p 20
+
+#bbmap
+pileup.sh in=path/to/Sample.sam rpkm=path/to/sample.txt
