@@ -1,0 +1,116 @@
+#### Metagenomic Analysis Project
+### Required Packages
+fasp (https://github.com/OpenGene/fastp)
+MEGAHIT (https://github.com/voutcn/megahit)
+SPAdes (https://github.com/ablab/spades)
+Seqkit (https://github.com/shenwei356/seqkit)
+Bowtie2 (https://github.com/BenLangmead/bowtie2)
+samtools (https://github.com/samtools/samtools)
+MetaBAT2 (https://bitbucket.org/berkeleylab/metabat)
+MetaWRAP (https://github.com/bxlab/metaWRAP)
+ESOM (https://github.com/tetramerFreqs/Binning)
+CheckM (https://github.com/Ecogenomics/CheckM)
+dRep (https://github.com/MrOlm/drep)
+GTDB-Tk (https://github.com/Ecogenomics/GTDBTk)
+METABOLIC (https://github.com/AnantharamanLab/METABOLIC)
+CoverM (https://github.com/wwood/CoverM)
+Muscle (https://github.com/rcedgar/muscle)
+trimAl (https://github.com/inab/trimal)
+IQ-TREE (https://github.com/iqtree/iqtree2)
+PhyloPhlAn (https://github.com/biobakery/phylophlan)
+Prodigal (https://github.com/hyattpd/Prodigal)
+HMMER (https://github.com/EddyRivasLab/hmmer)
+CompareM (https://github.com/donovan-h-parks/CompareM)
+
+
+
+
+### Usage
+# After installing the required packages, you can run the metagenomic analysis code as described in the instructions. For detailed guidance, refer to the file named Metagenomic analysis.txt.
+### Example Commands
+# Quality control
+conda activate fastp
+fastp -i path/to/Raw-Reads_1.fq.gz -I path/to/Raw-Rreads_2.fq.gz \
+-o path/to/Clean-Reads_1.fq -O path/to/Clean-Reads_2.fq
+
+# Assembly
+conda activate MEGAHIT
+megahit -1 path/to/Clean-Reads_1.fq -2 path/to/CleabReads_2.fq \ 
+-o path/to/Assembly --min-contig-len 2500 --k-min 41 --k-max 121 -t 20
+
+conda activcate SPAdes
+spades.py  -1 path/to/Clean-Reads_1.fq -2 path/to/Clean-Reads_2.fq \
+ -k 21,33,55,77,99,127 --meta -o spades-output
+
+seqkit seq -m 2500 spades-output/contigs.fa > spades-contigs.fa
+
+# Bowtie2
+conda activate bowtie2
+bowtie2-build path/to/megahit-contigs.fa megahit-genome
+bowtie2-build path/to/spades-contigs.fa spades-genome
+bowtie2 -x megahit-genome -1 path/to/CleanReads_1.fq -2 path/to/CleanReads_2.fq \ 
+-S path/to/sample-megahit.sam -p 20
+bowtie2 -x spades-genome -1 path/to/CleanReads_1.fq -2 path/to/CleanReads_2.fq \ 
+-S path/to/sample-sapdes.sam -p 20
+
+# samtools
+conda activate samtools
+samtools view -@ 100 -bS path/to/sample-megahit.sam > path/to/sample-megahit.bam
+samtools view -@ 100 -bS path/to/sample-spades.sam > path/to/sample-spades.bam
+
+samtools sort path/to/sample-megahit.bam -o path/to/sample-megahit.sorted -@ 100
+samtools sort path/to/sample-spades.bam -o path/to/sample-spades.sorted -@ 100
+
+#Metabat2
+conda activate metabat2
+jgi_summarize_bam_contig_depths --outputDepth megahit-depth.txt path/to/sample-megahit.sorted
+jgi_summarize_bam_contig_depths --outputDepth spades-depth.txt path/to/sample-spades.sorted
+
+metabat2 -i path/to/megahit-contigs.fasta -a depth.txt -o megahit-bins/TKL-sed
+metabat2 -i path/to/spades-contigs.fasta -a depth.txt -o spades-bins/TKL-sed
+ cat megahit-bins spades-bins > ALLMAGs
+
+#dRep
+conda activate dRep
+dRep dereplicate drepMAGs -g path/to/ALLMAGs/*.fa -comp 50 -con 10
+
+#MetaWRAP
+conda activate MetaWRAP
+metawrap reassemble_bins -o path/to/Reassemble-bins -1 path/to/CleanReads_1.fq -2 path/to/CleanReads_2.fq \
+-t 96  -c 50 -x 10 -l 2500 --parallel -b path/to/drepMAGs
+#SPAdes with parameters: -k 21,33,55,77,99,127
+
+#ESOM
+perl esomWrapper.pl -path path/to/Reassemble_bins -ext fa
+
+#CheckM
+checkm lineage_wf --tab_table -x fa path/to/Reassemble-bins checkm_out -t 100 -f checkm -a AAI
+
+#GTDB-Tk
+gtdbtk classify_wf --genome_dir path/to/Reassemble-bins  \
+--out_dir path/to/tax_out --extension fa --cpu 20
+
+#METABOLIC
+perl METABOLIC-G.pl -in-gn path/to/Reassemble -p single -o function
+
+#CompareM
+prodigal -i path/to/Reassemble/bin.fasta -a bin.faa -d bin.fna -p single
+comparem  aai_wf -x faa  --proteins path/to/Reassemble/faa path/to/outputAAI&
+
+#Phylogenomic tree
+conda activate phylophlan
+prodigal -i path/to/nitrifier-MAGs/bin.fasta -a bin.faa -d bin.fna -p single
+phylophlan -i path/to/nitrifier/protein-file -d path/to/miniconda3/envs/phylophlan/phylophlan_database/phylophlan -f path/to/miniconda3/envs/phylophlan/tol2.cfg \
+ --diversity high --accurate -o path/to/Nitrifier-MAG-tree --nproc 20
+trimal -in path/to/Nitrifier-MAG-tree/concatenated.aln -out path/to/Nitrifier-MAG-tree/concatenated-trimal.aln.fa -gt 0.95 -cons 50
+iqtree -s path/to/Nitrifier-MAG-tree/concatenated-trimal.aln.fa -m MFP -bb 1000 -nt 30
+
+#Phylogenetic tree
+prodigal -i contigs.fasta -a contigs.faa -d contigs.fna -p meta 
+hmmsearch gene.hmm contigs.faa > gene.out  #Obtain gene ID
+python extract.py #Extract gene sequnce based on gene ID
+muscle -align gene.faa -output gene-align.faa
+trimal -in gene-align.faa -out gene-align-trimal.faa -gt 0.95 -cons 50
+iqtree -s gene-align-trimal.faa -m MFP -bb 1000
+
+
