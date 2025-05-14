@@ -1,1 +1,49 @@
+# Additional Notes
+# QIIME 2: The core QIIME 2 framework.
+# q2-dada2: For denoising paired-end sequences.
+# q2-feature-classifier: For taxonomic classification.
+# biom-format: For converting BIOM format files.
 
+### Usage
+# After installing the required packages, you can run the amplicon analysis code as described in the instructions. For detailed guidance, refer to the file named Amplicon-QIIME2.txt.
+
+## Instructions
+
+# 1. Import the sequence data:
+qiime tools import \
+  --type 'SampleData[PairedEndSequencesWithQuality]' \
+  --input-path manifest.txt \
+  --output-path paired-end-demux.qza \
+  --input-format PairedEndFastqManifestPhred33V2
+
+# 2. Perform paired-end sequence denoising:
+qiime dada2 denoise-paired \
+--i-demultiplexed-seqs paired-end-demux.qza \
+--o-table table.qza \
+--o-representative-sequences rep-seqs.qza \
+--o-denoising-stats stats.qza \
+--p-trim-left-f 0 \
+--p-trim-left-r 0 \
+--p-trunc-len-f 0 \
+--p-trunc-len-r 0 \
+--p-n-threads 20
+
+# 3. Export the QIIME artifact file:
+qiime tools export \
+--input-path table.qza \
+--output-path output/out_raw
+
+# 4. Convert the BIOM format feature table:
+biom convert -i output/out_raw/feature-table.biom \
+-o output/out_raw/16s.tsv --to-tsv
+
+# 5. Perform taxonomic classification:
+qiime feature-classifier classify-sklearn \
+--i-reads rep-seqs-dn.qza \
+--i-classifier silva-138-99-nb-classifier.qza \
+--o-classification taxonomy.qza
+
+# 6. Export the QIIME artifact file:
+qiime tools export \
+--input-path taxonomy.qza \
+--output-path export_data
