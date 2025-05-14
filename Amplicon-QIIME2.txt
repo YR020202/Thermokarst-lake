@@ -5,7 +5,7 @@
 # biom-format: For converting BIOM format files.
 
 ### Usage
-# After installing the required packages, you can run the amplicon analysis code as described    in the instructions. For detailed guidance, refer to the file named amplicon_analysis.txt.
+# After installing the required packages, you can run the amplicon analysis code as described in the instructions. For detailed guidance, refer to the file named Amplicon-QIIME2.txt.
 
 ## Instructions
 
