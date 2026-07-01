@@ -32,9 +32,9 @@ sortmerna --index 0 --threads 48 \
 
 #Bowite2
 cd path/to/Reassemble_bins
-cat *.fa > ALL-MAGs.fa
-bowtie2-build ALL-MAGs.fa genome
-bowtie2 -x genome -1 path/to/mRNA-Reads_1.fq -2 path/to/mRNA-Reads_2.fq \ 
+cat *.fna > ALL-MAGs.fna
+bowtie2-build ALL-MAGs.fna gene
+bowtie2 -x gene -1 path/to/mRNA-Reads_1.fq -2 path/to/mRNA-Reads_2.fq \ 
 -S path/to/Sample.sam -p 20
 
 #bbmap
