@@ -1,49 +1,162 @@
-# Additional Notes
-# QIIME 2: The core QIIME 2 framework.
-# q2-dada2: For denoising paired-end sequences.
-# q2-feature-classifier: For taxonomic classification.
-# biom-format: For converting BIOM format files.
+# Amplicon Sequence Analysis Using QIIME 2
+#
+# Overview
+# --------
+# This workflow processes demultiplexed paired-end amplicon reads using
+# QIIME 2. DADA2 is used for quality filtering, denoising, paired-read
+# merging, chimera removal, and amplicon sequence variant (ASV) inference.
+# The resulting ASVs are then clustered de novo with VSEARCH at 95% sequence
+# identity to generate an operational taxonomic unit (OTU) table.
+#
+# Workflow summary
+# ----------------
+# 1. Import demultiplexed paired-end FASTQ files.
+# 2. Inspect read-quality profiles.
+# 3. Infer ASVs with DADA2.
+# 4. Cluster the denoised ASVs into OTUs at 95% identity with VSEARCH.
+# 5. Assign taxonomy to the representative sequences of the 95% OTUs.
+# 6. Export the ASV table, 95% OTU table, representative sequences, and
+#    taxonomy for downstream analyses.
+#
+# Requirements
+# ------------
+# - QIIME 2: Core framework for amplicon-sequence analysis.
+# - q2-demux: Generates sequence-quality summaries.
+# - q2-dada2: Performs paired-end denoising and ASV inference.
+# - q2-vsearch: Clusters denoised ASVs into OTUs at 95% identity.
+# - q2-feature-classifier: Assigns taxonomy to representative sequences.
+# - biom-format: Converts BIOM feature tables to tab-separated text files.
+#
+# Required input files
+# --------------------
+# - manifest.txt: Paired-end FASTQ manifest with absolute file paths.
+# - silva-138-99-nb-classifier.qza: Pre-trained SILVA classifier.
+# - Demultiplexed forward and reverse FASTQ files.
+#
+# Example manifest.txt:
+# sample-id    forward-absolute-filepath              reverse-absolute-filepath
+# Sample1      /path/to/Sample1_R1.fastq.gz           /path/to/Sample1_R2.fastq.gz
+# Sample2      /path/to/Sample2_R1.fastq.gz           /path/to/Sample2_R2.fastq.gz
+#
+# Before running this workflow, activate the appropriate QIIME 2 environment.
 
-### Usage
-# After installing the required packages, you can run the amplicon analysis code as described in the instructions. For detailed guidance, refer to the file named Amplicon-QIIME2.txt.
 
-## Instructions
-
-# 1. Import the sequence data:
+# 1. Import demultiplexed paired-end sequences.
 qiime tools import \
   --type 'SampleData[PairedEndSequencesWithQuality]' \
   --input-path manifest.txt \
   --output-path paired-end-demux.qza \
   --input-format PairedEndFastqManifestPhred33V2
 
-# 2. Perform paired-end sequence denoising:
+
+# 2. Summarise the imported reads and inspect their quality profiles.
+# Open paired-end-demux.qzv at https://view.qiime2.org.
+qiime demux summarize \
+  --i-data paired-end-demux.qza \
+  --o-visualization paired-end-demux.qzv
+
+
+# 3. Denoise paired-end reads with DADA2 and infer ASVs.
+# IMPORTANT:
+# - A trim or truncation value of 0 disables trimming or truncation.
+# - Replace the values below according to paired-end-demux.qzv.
+# - After truncation, forward and reverse reads must retain sufficient overlap
+#   for successful merging (at least 12 nt is required by DADA2).
 qiime dada2 denoise-paired \
---i-demultiplexed-seqs paired-end-demux.qza \
---o-table table.qza \
---o-representative-sequences rep-seqs.qza \
---o-denoising-stats stats.qza \
---p-trim-left-f 0 \
---p-trim-left-r 0 \
---p-trunc-len-f 0 \
---p-trunc-len-r 0 \
---p-n-threads 20
+  --i-demultiplexed-seqs paired-end-demux.qza \
+  --p-trim-left-f 0 \
+  --p-trim-left-r 0 \
+  --p-trunc-len-f 0 \
+  --p-trunc-len-r 0 \
+  --p-n-threads 20 \
+  --o-table asv-table.qza \
+  --o-representative-sequences asv-rep-seqs.qza \
+  --o-denoising-stats dada2-stats.qza
 
-# 3. Export the QIIME artifact file:
-qiime tools export \
---input-path table.qza \
---output-path output/out_raw
 
-# 4. Convert the BIOM format feature table:
-biom convert -i output/out_raw/feature-table.biom \
--o output/out_raw/16s.tsv --to-tsv
+# 4. Summarise and inspect the DADA2 outputs.
+qiime metadata tabulate \
+  --m-input-file dada2-stats.qza \
+  --o-visualization dada2-stats.qzv
 
-# 5. Perform taxonomic classification:
+qiime feature-table summarize \
+  --i-table asv-table.qza \
+  --o-visualization asv-table.qzv
+
+qiime feature-table tabulate-seqs \
+  --i-data asv-rep-seqs.qza \
+  --o-visualization asv-rep-seqs.qzv
+
+
+# 5. Cluster DADA2 ASVs de novo into OTUs at 95% sequence identity.
+# --p-perc-identity 0.95 corresponds to a 95% identity threshold.
+# The abundance of an OTU is the sum of the abundances of all ASVs assigned
+# to that cluster. The centroid sequence becomes the OTU representative.
+qiime vsearch cluster-features-de-novo \
+  --i-table asv-table.qza \
+  --i-sequences asv-rep-seqs.qza \
+  --p-perc-identity 0.95 \
+  --p-strand plus \
+  --p-threads 20 \
+  --o-clustered-table otu95-table.qza \
+  --o-clustered-sequences otu95-rep-seqs.qza
+
+
+# 6. Summarise the 95% OTU outputs.
+qiime feature-table summarize \
+  --i-table otu95-table.qza \
+  --o-visualization otu95-table.qzv
+
+qiime feature-table tabulate-seqs \
+  --i-data otu95-rep-seqs.qza \
+  --o-visualization otu95-rep-seqs.qzv
+
+
+# 7. Assign taxonomy to the representative sequences of the 95% OTUs.
+# Use a classifier compatible with the installed QIIME 2 release and,
+# preferably, trained for the amplified marker-gene region.
 qiime feature-classifier classify-sklearn \
---i-reads rep-seqs-dn.qza \
---i-classifier silva-138-99-nb-classifier.qza \
---o-classification taxonomy.qza
+  --i-reads otu95-rep-seqs.qza \
+  --i-classifier silva-138-99-nb-classifier.qza \
+  --p-n-jobs 20 \
+  --o-classification otu95-taxonomy.qza
 
-# 6. Export the QIIME artifact file:
+qiime metadata tabulate \
+  --m-input-file otu95-taxonomy.qza \
+  --o-visualization otu95-taxonomy.qzv
+
+
+# 8. Create the output directory.
+mkdir -p output
+
+
+# 9. Export the original ASV feature table.
 qiime tools export \
---input-path taxonomy.qza \
---output-path export_data
+  --input-path asv-table.qza \
+  --output-path output/asv-table
+
+biom convert \
+  --input-fp output/asv-table/feature-table.biom \
+  --output-fp output/asv-table/asv-table.tsv \
+  --to-tsv
+
+
+# 10. Export and convert the 95% OTU feature table.
+qiime tools export \
+  --input-path otu95-table.qza \
+  --output-path output/otu95-table
+
+biom convert \
+  --input-fp output/otu95-table/feature-table.biom \
+  --output-fp output/otu95-table/otu95-table.tsv \
+  --to-tsv
+
+
+# 11. Export the 95% OTU taxonomy and representative sequences.
+qiime tools export \
+  --input-path otu95-taxonomy.qza \
+  --output-path output/otu95-taxonomy
+
+qiime tools export \
+  --input-path otu95-rep-seqs.qza \
+  --output-path output/otu95-representative-sequences
